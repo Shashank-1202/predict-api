@@ -11,11 +11,15 @@ pipeline {
     stages {
 
         stage('Checkout') {
-            steps { checkout scm }
+            steps {
+                checkout scm
+            }
         }
 
         stage('Test') {
-            steps { sh "npm test" }
+            steps {
+                sh "npm test"
+            }
         }
 
         stage('Docker Build') {
@@ -32,18 +36,18 @@ pipeline {
                     string(credentialsId: 'aws-account-id', variable: 'AWS_ACCOUNT_ID')
                 ]) {
                     sh '''
-                    export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
-                    export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
-                    export AWS_DEFAULT_REGION=ap-south-1
+                        export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+                        export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+                        export AWS_DEFAULT_REGION=ap-south-1
 
-                    aws ecr get-login-password --region $AWS_DEFAULT_REGION \
-                    | docker login --username AWS --password-stdin \
-                      $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+                        aws ecr get-login-password --region $AWS_DEFAULT_REGION \
+                        | docker login --username AWS --password-stdin \
+                          $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
 
-                    docker tag predict-api:${BUILD_NUMBER} \
-                      $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/predict-api:${BUILD_NUMBER}
+                        docker tag predict-api:${BUILD_NUMBER} \
+                          $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/predict-api:${BUILD_NUMBER}
 
-                    docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/predict-api:${BUILD_NUMBER}
+                        docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/predict-api:${BUILD_NUMBER}
                     '''
                 }
             }
@@ -56,16 +60,23 @@ pipeline {
                     string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY'),
                     string(credentialsId: 'aws-account-id', variable: 'AWS_ACCOUNT_ID')
                 ]) {
-
                     sh '''
-                    export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
-                    export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
-                    export AWS_DEFAULT_REGION=ap-south-1
+                        export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+                        export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+                        export AWS_DEFAULT_REGION=ap-south-1
 
-                    aws eks update-kubeconfig \
-                      --region $AWS_DEFAULT_REGION \
-                      --name healthcare-cluster
+                        aws eks update-kubeconfig \
+                          --region $AWS_DEFAULT_REGION \
+                          --name healthcare-cluster
 
-                    kubectl set image deployment/predict-api \
-                      -n healthcare-app \
-                      predict=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/predict-api:${BUILD_NUMBER}
+                        kubectl set image deployment/predict-api \
+                          -n healthcare-app \
+                          predict=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/predict-api:${BUILD_NUMBER}
+
+                        kubectl rollout status deployment/predict-api -n healthcare-app
+                    '''
+                }
+            }
+        }
+    }
+}
