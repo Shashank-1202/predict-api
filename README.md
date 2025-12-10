@@ -217,3 +217,5 @@ eksctl update addon \
   --name cloudwatch-observability \
   --region ap-south-1
 
+<img width="1366" height="604" alt="deployment" src="https://github.com/user-attachments/assets/45d40f38-2e86-49e8-ba2e-771a2861d62e" />
+
