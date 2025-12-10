@@ -81,13 +81,14 @@ pipeline {
                     """
 
                     // Update deployment image
-                    sh """
-                    kubectl set image deployment/predict-api \
-                        -n ${K8S_NAMESPACE} \
-                        ${CONTAINER_NAME}=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}
+sh """
+kubectl set image deployment/predict-api \
+  -n ${K8S_NAMESPACE} \
+  ${CONTAINER_NAME}=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}
 
-                    kubectl rollout status deployment/predict-api -n ${K8S_NAMESPACE}
-                    """
+kubectl rollout status deployment/predict-api -n ${K8S_NAMESPACE}
+"""
+
                 }
             }
         }
