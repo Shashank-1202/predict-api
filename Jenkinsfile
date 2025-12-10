@@ -2,20 +2,10 @@ pipeline {
     agent any
 
     environment {
-        AWS_REGION               = "ap-south-1"
-
-        // 🔥 Enter these EXACT credential IDs from Jenkins
-        AWS_ACCOUNT_ID           = credentials('aws-account-id')
-        AWS_ACCESS_KEY_ID        = credentials('aws-access-key-id')
-        AWS_SECRET_ACCESS_KEY    = credentials('aws-secret-access-key')
-
-        // 🔥 Change if your ECR repo name is different
-        ECR_REPO                 = "predict-api"
-
-        IMAGE_TAG                = "${BUILD_NUMBER}"
-
-        // 🔥 Enter your EKS cluster name
-        EKS_CLUSTER_NAME         = "healthcare-cluster"
+        AWS_REGION       = "ap-south-1"
+        ECR_REPO         = "predict-api"
+        IMAGE_TAG        = "${BUILD_NUMBER}"
+        EKS_CLUSTER_NAME = "healthcare-cluster"
     }
 
     stages {
@@ -29,55 +19,53 @@ pipeline {
         }
 
         stage('Docker Build') {
-            steps { sh "docker build -t ${ECR_REPO}:${IMAGE_TAG} ." }
+            steps {
+                sh "docker build -t ${ECR_REPO}:${IMAGE_TAG} ."
+            }
         }
 
         stage('Push to ECR') {
             steps {
-                withEnv([
-                    "AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}",
-                    "AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}",
-                    "AWS_DEFAULT_REGION=${AWS_REGION}"
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY'),
+                    string(credentialsId: 'aws-account-id', variable: 'AWS_ACCOUNT_ID')
                 ]) {
-                    sh """
-                    aws ecr get-login-password --region ${AWS_REGION} \
+                    sh '''
+                    export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+                    export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+                    export AWS_DEFAULT_REGION=ap-south-1
+
+                    aws ecr get-login-password --region $AWS_DEFAULT_REGION \
                     | docker login --username AWS --password-stdin \
-                      ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+                      $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
 
-                    docker tag ${ECR_REPO}:${IMAGE_TAG} \
-                      ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}
+                    docker tag predict-api:${BUILD_NUMBER} \
+                      $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/predict-api:${BUILD_NUMBER}
 
-                    docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}
-                    """
+                    docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/predict-api:${BUILD_NUMBER}
+                    '''
                 }
             }
         }
 
         stage('Deploy to EKS') {
             steps {
-                withEnv([
-                    "AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}",
-                    "AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}",
-                    "AWS_DEFAULT_REGION=${AWS_REGION}"
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY'),
+                    string(credentialsId: 'aws-account-id', variable: 'AWS_ACCOUNT_ID')
                 ]) {
 
-                    // Update kubeconfig
-                    sh """
-                    aws eks update-kubeconfig \
-                      --region ${AWS_REGION} \
-                      --name ${EKS_CLUSTER_NAME}
-                    """
+                    sh '''
+                    export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+                    export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+                    export AWS_DEFAULT_REGION=ap-south-1
 
-                    // 🔥 Container name MUST match deployment YAML
-                    sh """
+                    aws eks update-kubeconfig \
+                      --region $AWS_DEFAULT_REGION \
+                      --name healthcare-cluster
+
                     kubectl set image deployment/predict-api \
                       -n healthcare-app \
-                      predict=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}
-
-                    kubectl rollout status deployment/predict-api -n healthcare-app
-                    """
-                }
-            }
-        }
-    }
-}
+                      predict=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/predict-api:${BUILD_NUMBER}
